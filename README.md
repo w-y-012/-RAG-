@@ -1,103 +1,141 @@
-# RAG Challenge Winner Solution
+RAG 智能财报问答系统
+基于 检索增强生成（RAG） 技术的财报问答系统，专为中芯国际等上市公司年报设计。支持向量检索、BM25 关键词检索、混合检索（RRF 融合）以及大模型重排序，可回答数值、布尔、实体列表、开放性文本等多种类型的问题。
 
-**Read more about this project:**
-- Russian: https://habr.com/ru/articles/893356/
-- English: https://abdullin.com/ilya/how-to-build-best-rag/
 
-This repository contains the winning solution for both prize nominations in the RAG Challenge competition. The system achieved state-of-the-art results in answering questions about company annual reports using a combination of:
+项目简介
+本项目实现了一个完整的 RAG 问答流水线，输入为 PDF 格式的年报，输出为针对自然语言问题的结构化答案。系统包含以下关键环节：
 
-- Custom PDF parsing with Docling
-- Vector search with parent document retrieval
-- LLM reranking for improved context relevance
-- Structured output prompting with chain-of-thought reasoning
-- Query routing for multi-company comparisons
+PDF 解析：使用 MinerU 将 PDF 转换为结构化的 content_list.json。
 
-## Disclaimer
+智能分块：基于标题层级、表格、列表等语义边界进行分块，并记录跨页页码。
 
-This is competition code - it's scrappy but it works. Some notes before you dive in:
+索引构建：生成 FAISS 向量索引（384 维轻量模型）和 BM25 关键词索引。
 
-- IBM Watson integration won't work (it was competition-specific)
-- The code might have rough edges and weird workarounds
-- No tests, minimal error handling - you've been warned
-- You'll need your own API keys for OpenAI/Gemini
-- GPU helps a lot with PDF parsing (I used 4090)
+混合检索：同时执行向量检索与 BM25 检索，通过 RRF 融合排序。
 
-If you're looking for production-ready code, this isn't it. But if you want to explore different RAG techniques and their implementations - check it out!
+LLM 重排序（可选）：使用大模型对初检结果进行二次精排，提升相关性。
 
-## Quick Start
+答案生成：将检索到的上下文与问题一同提交给 LLM，生成结构化答案（支持 number/boolean/names/string/comparative 等多种格式）。
 
-Clone and setup:
-```bash
-git clone https://github.com/IlyaRice/RAG-Challenge-2.git
-cd RAG-Challenge-2
-python -m venv venv
-venv\Scripts\Activate.ps1  # Windows (PowerShell)
-pip install -e . -r requirements.txt
-```
 
-Rename `env` to `.env` and add your API keys.
+pip install -r requirements.txt
+主要依赖包：
 
-## Test Dataset
+sentence-transformers：本地嵌入模型（paraphrase-multilingual-MiniLM-L12-v2）
 
-The repository includes two datasets:
+faiss-cpu：向量索引
 
-1. A small test set (in `data/test_set/`) with 5 annual reports and questions
-2. The full ERC2 competition dataset (in `data/erc2_set/`) with all competition questions and reports
+rank-bm25：BM25 索引
 
-Each dataset directory contains its own README with specific setup instructions and available files. You can use either dataset to:
+jieba：中文分词
 
-- Study example questions, reports, and system outputs
-- Run the pipeline from scratch using provided PDFs
-- Use pre-processed data to skip directly to specific pipeline stages
+langchain-text-splitters：文本分割
 
-See the respective README files for detailed dataset contents and setup instructions:
-- `data/test_set/README.md` - For the small test dataset
-- `data/erc2_set/README.md` - For the full competition dataset
+tiktoken：Token 计数
 
-## Usage
+pandas、tqdm 等
 
-You can run any part of pipeline by uncommenting the method you want to run in `src/pipeline.py` and executing:
-```bash
-python .\src\pipeline.py
-```
 
-You can also run any pipeline stage using `main.py`, but you need to run it from the directory containing your data:
-```bash
-cd .\data\test_set\
-python ..\..\main.py process-questions --config max_nst_o3m
-```
+数据准备
+1. 放置 PDF 文件
+将目标财报 PDF 放入 data/stock_data/pdf_reports/ 目录（可自定义）。
 
-### CLI Commands
+2. 准备 subset.csv
+文件格式（UTF-8 或 GBK）：
 
-Get help on available commands:
-```bash
-python main.py --help
-```
+csv
+sha1,file_name,company_name
+stock_10001,【财报】中芯国际：中芯国际2024年年度报告,中芯国际
+sha1：唯一标识，用于索引文件命名。
 
-Available commands:
-- `download-models` - Download required docling models
-- `parse-pdfs` - Parse PDF reports with parallel processing options
-- `serialize-tables` - Process tables in parsed reports
-- `process-reports` - Run the full pipeline on parsed reports
-- `process-questions` - Process questions using specified config
+file_name：PDF 文件名（不含扩展名）。
 
-Each command has its own options. For example:
-```bash
-python main.py parse-pdfs --help
-# Shows options like --parallel/--sequential, --chunk-size, --max-workers
+company_name：公司全称，用于问题中公司名匹配。
 
-python main.py process-reports --config ser_tab
-# Process reports with serialized tables config
-```
+3. 准备问题文件 questions.json
+json
+[
+    {
+        "text": "中芯国际2024年营业收入是多少？",
+        "kind": "number"
+    },
+    {
+        "text": "公司是否在2024年进行了分红？",
+        "kind": "boolean"
+    },
+    {
+        "text": "列出2024年公司的前五大客户名称。",
+        "kind": "names"
+    }
+]
+支持的 kind 类型：number、boolean、names、string、comparative。
 
-## Some configs
+运行流程
+完整流水线（一键执行）
+bash
+python src/pipeline.py
+默认配置（max_config）会依次执行：PDF 解析 → 分块 → 构建向量库 → 构建 BM25 → 问答。
 
-- `max_nst_o3m` - Best performing config using OpenAI's o3-mini model
-- `ibm_llama70b` - Alternative using IBM's Llama 70B model
-- `gemini_thinking` - Full context answering with using enormous context window of Gemini. It is not RAG, actually
+分步执行（调试用）
+可在 if __name__ == "__main__" 中单独运行各步骤：
 
-Check `pipeline.py` for more configs and detils on them.
+python
+pipeline = Pipeline(root_path, run_config=max_config)
 
-## License
+# 1. 将 PDF 转换为 content_list.json（需要 MinerU API Key）
+# pipeline.export_reports_to_markdown('【财报】中芯国际：中芯国际2024年年度报告.pdf')
 
-MIT
+# 2. 分块
+pipeline.chunk_reports()
+
+# 3. 构建向量库（FAISS）
+pipeline.create_vector_dbs()
+
+# 4. 构建 BM25 索引
+pipeline.create_bm25_db()
+
+# 5. 回答所有问题
+pipeline.process_questions()
+单问题交互
+python
+answer = pipeline.answer_single_question("中芯国际2024年净利润是多少？", kind="number")
+print(answer["final_answer"])
+模拟模式（无真实 LLM API）
+在 .env 或代码中设置：
+
+python
+os.environ["USE_MOCK_LLM"] = "true"
+此时所有 LLM 调用返回固定占位答案，用于测试检索和分块逻辑。
+
+核心模块详解
+1. 智能分块器（TextSplitter）
+输入：MinerU 输出的 *_content_list.json
+
+输出：*_chunks.json（包含每个 chunk 的文本、页码、章节标题、表格结构等）
+
+特性：
+
+自动关联多级标题（section_title）
+
+连续文本合并（直到遇到表格/图片等特殊块）
+
+跨页页码记录（pages 列表）
+
+表格转换为 Markdown + 结构化元数据
+
+2. 检索器
+向量检索（VectorRetriever）：使用 FAISS + 本地嵌入模型（384 维）
+
+BM25 检索（BM25Retriever）：基于 jieba 分词，适合关键词匹配
+
+混合检索（HybridRetriever）：同时执行上述两种检索，通过 RRF 融合排序，可选 LLM 重排
+
+3. 答案生成（APIProcessor）
+根据 kind 自动选择提示模板和输出格式（Pydantic schema）
+
+
+使用手册
+自定义配置
+修改 RunConfig 实例（如 max_config）：
+
+eval_data_answers_{config_suffix}.json：RAGAS 评估数据（若启用）
