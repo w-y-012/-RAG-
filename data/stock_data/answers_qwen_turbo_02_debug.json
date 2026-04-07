@@ -1,0 +1,172 @@
+{
+  "questions": [
+    {
+      "question_text": "中芯国际在晶圆制造行业中的地位如何？其服务范围和全球布局是怎样的？",
+      "kind": "string",
+      "value": "42",
+      "references": [
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 1
+        },
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 11
+        }
+      ],
+      "answer_details": {
+        "$ref": "#/answer_details/0"
+      }
+    },
+    {
+      "question_text": "半导体行业有哪些关键特性，这些特性如何助力中芯国际发展？",
+      "kind": "string",
+      "value": "42",
+      "references": [
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 11
+        },
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 5
+        }
+      ],
+      "answer_details": {
+        "$ref": "#/answer_details/1"
+      }
+    },
+    {
+      "question_text": "中芯国际的营收和利润情况近期有何变化？影响因素是什么？",
+      "kind": "string",
+      "value": "42",
+      "references": [
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 1
+        },
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 11
+        }
+      ],
+      "answer_details": {
+        "$ref": "#/answer_details/2"
+      }
+    },
+    {
+      "question_text": "中芯国际的收入结构有何变化？尤其是在中国大陆和北美市场的表现如何？",
+      "kind": "string",
+      "value": "42",
+      "references": [
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 11
+        },
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 213
+        }
+      ],
+      "answer_details": {
+        "$ref": "#/answer_details/3"
+      }
+    },
+    {
+      "question_text": "美国对中国半导体产业的限制政策对中芯国际有何影响？中芯国际如何应对？",
+      "kind": "string",
+      "value": "42",
+      "references": [
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 17
+        },
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 5
+        }
+      ],
+      "answer_details": {
+        "$ref": "#/answer_details/4"
+      }
+    }
+  ],
+  "answer_details": [
+    {
+      "step_by_step_analysis": "这是模拟的逐步推理过程。",
+      "reasoning_summary": "模拟摘要",
+      "relevant_pages": [
+        1,
+        11
+      ],
+      "response_data": {
+        "model": "mock",
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "self": "#/answer_details/0"
+    },
+    {
+      "step_by_step_analysis": "这是模拟的逐步推理过程。",
+      "reasoning_summary": "模拟摘要",
+      "relevant_pages": [
+        11,
+        5
+      ],
+      "response_data": {
+        "model": "mock",
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "self": "#/answer_details/1"
+    },
+    {
+      "step_by_step_analysis": "这是模拟的逐步推理过程。",
+      "reasoning_summary": "模拟摘要",
+      "relevant_pages": [
+        1,
+        11
+      ],
+      "response_data": {
+        "model": "mock",
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "self": "#/answer_details/2"
+    },
+    {
+      "step_by_step_analysis": "这是模拟的逐步推理过程。",
+      "reasoning_summary": "模拟摘要",
+      "relevant_pages": [
+        11,
+        213
+      ],
+      "response_data": {
+        "model": "mock",
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "self": "#/answer_details/3"
+    },
+    {
+      "step_by_step_analysis": "这是模拟的逐步推理过程。",
+      "reasoning_summary": "模拟摘要",
+      "relevant_pages": [
+        17,
+        5
+      ],
+      "response_data": {
+        "model": "mock",
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "self": "#/answer_details/4"
+    }
+  ],
+  "statistics": {
+    "total_questions": 5,
+    "error_count": 0,
+    "na_count": 0,
+    "success_count": 5
+  }
+}

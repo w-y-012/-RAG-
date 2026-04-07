@@ -93,36 +93,6 @@ class Pipeline:
             except Exception as e:
                 print(f"Error converting JSON to CSV: {str(e)}")
 
-    @staticmethod
-    def download_docling_models(): 
-        # 下载Docling所需模型，避免首次运行时自动下载
-        logging.basicConfig(level=logging.DEBUG)
-        parser = PDFParser(output_dir=here())
-        parser.parse_and_export(input_doc_paths=[here() / "src/dummy_report.pdf"])
-
-    def parse_pdf_reports_parallel(self, chunk_size: int = 2, max_workers: int = 10):
-        """多进程并行解析PDF报告，提升处理效率
-        参数：
-            chunk_size: 每个worker处理的PDF数
-            num_workers: 并发worker数
-        """
-        logging.basicConfig(level=logging.DEBUG)
-        
-        pdf_parser = PDFParser(
-            output_dir=self.paths.parsed_reports_path,
-            csv_metadata_path=self.paths.subset_path
-        )
-        pdf_parser.debug_data_path = self.paths.parsed_reports_debug_path
-
-        input_doc_paths = list(self.paths.pdf_reports_dir.glob("*.pdf"))
-        
-        pdf_parser.parse_and_export_parallel(
-            input_doc_paths=input_doc_paths,
-            optimal_workers=max_workers,
-            chunk_size=chunk_size
-        )
-        print(f"PDF reports parsed and saved to {self.paths.parsed_reports_path}")
-
     def export_reports_to_markdown(self, file_name):
         """
         使用 pdf_mineru.py，将指定 PDF 文件转换为 markdown，并放到 reports_markdown_dirname 目录下。

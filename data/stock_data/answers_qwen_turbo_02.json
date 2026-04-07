@@ -1,0 +1,85 @@
+{
+  "answers": [
+    {
+      "question_text": "中芯国际在晶圆制造行业中的地位如何？其服务范围和全球布局是怎样的？",
+      "kind": "string",
+      "value": "42",
+      "references": [
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 0
+        },
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 10
+        }
+      ],
+      "reasoning_process": "这是模拟的逐步推理过程。"
+    },
+    {
+      "question_text": "半导体行业有哪些关键特性，这些特性如何助力中芯国际发展？",
+      "kind": "string",
+      "value": "42",
+      "references": [
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 10
+        },
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 4
+        }
+      ],
+      "reasoning_process": "这是模拟的逐步推理过程。"
+    },
+    {
+      "question_text": "中芯国际的营收和利润情况近期有何变化？影响因素是什么？",
+      "kind": "string",
+      "value": "42",
+      "references": [
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 0
+        },
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 10
+        }
+      ],
+      "reasoning_process": "这是模拟的逐步推理过程。"
+    },
+    {
+      "question_text": "中芯国际的收入结构有何变化？尤其是在中国大陆和北美市场的表现如何？",
+      "kind": "string",
+      "value": "42",
+      "references": [
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 10
+        },
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 212
+        }
+      ],
+      "reasoning_process": "这是模拟的逐步推理过程。"
+    },
+    {
+      "question_text": "美国对中国半导体产业的限制政策对中芯国际有何影响？中芯国际如何应对？",
+      "kind": "string",
+      "value": "42",
+      "references": [
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 16
+        },
+        {
+          "pdf_sha1": "stock_10001",
+          "page_index": 4
+        }
+      ],
+      "reasoning_process": "这是模拟的逐步推理过程。"
+    }
+  ],
+  "details": "Custom pdf parsing + vDB + Router + Parent Document Retrieval + reranking + SO CoT; llm = qwen-turbo"
+}
