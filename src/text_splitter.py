@@ -30,6 +30,7 @@ class TextSplitter:
     def _load_subset_mapping(self, subset_csv: Optional[Path]) -> Dict[str, Dict[str, str]]:
         mapping = {}
         if not subset_csv or not subset_csv.exists():
+            print(f"[WARNING] 未找到任何 {subset_csv}文件")
             return mapping
         try:
             df = pd.read_csv(subset_csv, encoding='utf-8')
@@ -106,31 +107,198 @@ class TextSplitter:
     def _get_full_title_path(self, stack: List[Tuple[str, int]]) -> str:
         return " > ".join([t[0] for t in stack]) if stack else ""
 
-    # ---------- 修复：鲁棒的 HTML 表格转 Markdown（忽略说明行/列）----------
     @staticmethod
     def _html_table_to_markdown(html: str) -> str:
         """
-        将 HTML 表格转换为 Markdown 表格。
-        只转换真正的表格行（以 <tr> 包裹），忽略表格外的说明文本。
-        如果表格内某行全为空，则跳过。
+        将 HTML 表格转换为 Markdown 表格，支持 rowspan 和 colspan。
+        对于合并的单元格，通过重复内容来填充。
         """
+        import re
+        from html.parser import HTMLParser
+
         if not html or "<table" not in html.lower():
             return html
 
-        # 提取所有 <tr> 行
+        # ---------- 1. 解析表格 ----------
+        class TableParser(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.in_table = False
+                self.in_row = False
+                self.in_cell = False
+                self.current_row = []
+                self.rows = []
+                self.current_cell_text = []
+                self.current_rowspan = 1
+                self.current_colspan = 1
+
+            def handle_starttag(self, tag, attrs):
+                if tag == 'table':
+                    self.in_table = True
+                    self.rows = []
+                elif self.in_table and tag == 'tr':
+                    self.in_row = True
+                    self.current_row = []
+                elif self.in_table and self.in_row and tag in ('td', 'th'):
+                    self.in_cell = True
+                    self.current_cell_text = []
+                    attrs_dict = dict(attrs)
+                    self.current_rowspan = int(attrs_dict.get('rowspan', 1))
+                    self.current_colspan = int(attrs_dict.get('colspan', 1))
+
+            def handle_endtag(self, tag):
+                if tag == 'table':
+                    self.in_table = False
+                elif tag == 'tr':
+                    if self.in_row:
+                        self.rows.append(self.current_row)
+                        self.in_row = False
+                elif tag in ('td', 'th') and self.in_cell:
+                    cell_text = ''.join(self.current_cell_text).strip()
+                    self.current_row.append({
+                        'text': cell_text,
+                        'rowspan': self.current_rowspan,
+                        'colspan': self.current_colspan
+                    })
+                    self.in_cell = False
+
+            def handle_data(self, data):
+                if self.in_cell:
+                    self.current_cell_text.append(data)
+
+        parser = TableParser()
+        try:
+            parser.feed(html)
+        except Exception:
+            return TextSplitter._simple_html_table_to_markdown(html)
+
+        rows = parser.rows
+        if not rows:
+            return html
+
+        # ---------- 2. 计算最大列数 ----------
+        max_cols = 0
+        for row in rows:
+            col_idx = 0
+            for cell in row:
+                col_idx += cell['colspan']
+            max_cols = max(max_cols, col_idx)
+
+        # ---------- 3. 构建网格，标记合并单元格 ----------
+        # 初始化网格
+        grid = [[None for _ in range(max_cols)] for _ in range(len(rows))]
+
+        # 存储每个单元格的原始信息
+        cell_info = [[None for _ in range(max_cols)] for _ in range(len(rows))]
+
+        for i, row in enumerate(rows):
+            col_idx = 0
+            for cell in row:
+                # 跳过已被占用的列
+                while col_idx < max_cols and grid[i][col_idx] is not None:
+                    col_idx += 1
+                if col_idx >= max_cols:
+                    break
+
+                rowspan = cell['rowspan']
+                colspan = cell['colspan']
+                text = cell['text']
+
+                # 存储单元格
+                grid[i][col_idx] = text
+                cell_info[i][col_idx] = {
+                    'text': text,
+                    'rowspan': rowspan,
+                    'colspan': colspan,
+                    'is_start': True
+                }
+
+                # 🔑 标记被 colspan 占用的位置（同行后续列）
+                for c in range(1, colspan):
+                    if col_idx + c < max_cols:
+                        grid[i][col_idx + c] = ''  # 临时占位
+                        cell_info[i][col_idx + c] = {
+                            'is_placeholder': True,
+                            'source_row': i,
+                            'source_col': col_idx
+                        }
+
+                # 🔑 标记被 rowspan 占用的位置（后续行）
+                for r in range(1, rowspan):
+                    if i + r < len(grid):
+                        for c in range(colspan):
+                            if col_idx + c < max_cols:
+                                grid[i + r][col_idx + c] = ''  # 临时占位
+                                cell_info[i + r][col_idx + c] = {
+                                    'is_placeholder': True,
+                                    'source_row': i,
+                                    'source_col': col_idx
+                                }
+
+                col_idx += colspan
+
+        # ---------- 4. 🔑 关键：填充所有占位符（重复内容）----------
+        for i in range(len(grid)):
+            for j in range(len(grid[i])):
+                if cell_info[i][j] and cell_info[i][j].get('is_placeholder'):
+                    src_row = cell_info[i][j]['source_row']
+                    src_col = cell_info[i][j]['source_col']
+                    # 从源单元格复制内容
+                    if src_row < len(grid) and src_col < len(grid[src_row]):
+                        grid[i][j] = grid[src_row][src_col]
+
+        # ---------- 5. 将 None 转换为空字符串 ----------
+        for i in range(len(grid)):
+            for j in range(len(grid[i])):
+                if grid[i][j] is None:
+                    grid[i][j] = ''
+
+        # ---------- 6. 🔑 修复版 clean_cell：正确处理换行符 ----------
+        def clean_cell(txt):
+            if not txt:
+                return ''
+            # 将换行符替换为空格（保持内容连贯）
+            txt = txt.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+            # 合并多个空格
+            txt = re.sub(r'\s+', ' ', txt).strip()
+            # 转义管道符
+            txt = txt.replace('|', '\\|')
+            return txt
+
+        # ---------- 7. 构建 Markdown 表格 ----------
+        md_rows = []
+
+        # 处理表头（第一行作为表头）
+        header_cells = [clean_cell(cell) for cell in grid[0]]
+        md_rows.append('| ' + ' | '.join(header_cells) + ' |')
+
+        # 分隔行
+        separator = '| ' + ' | '.join(['---'] * len(grid[0])) + ' |'
+        md_rows.append(separator)
+
+        # 数据行（从第1行开始）
+        for row in grid[1:]:
+            md_cells = [clean_cell(cell) for cell in row]
+            # 跳过全空行
+            if all(not c or c == '' for c in md_cells):
+                continue
+            md_rows.append('| ' + ' | '.join(md_cells) + ' |')
+
+        return '\n'.join(md_rows)
+
+    @staticmethod
+    def _simple_html_table_to_markdown(html: str) -> str:
+        """降级方案：简单提取表格行和单元格，忽略 rowspan/colspan"""
         rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL | re.IGNORECASE)
         if not rows:
             return html
 
         all_cells = []
         for row_html in rows:
-            # 提取 <td> 和 <th> 单元格
             cells = re.findall(r'<t[dh][^>]*>(.*?)</t[dh]>', row_html, re.DOTALL | re.IGNORECASE)
             if not cells:
                 continue
-            # 清理单元格内容：去掉内部 HTML 标签，去除首尾空白
             clean_cells = [re.sub(r'<[^>]+>', '', c).strip() for c in cells]
-            # 跳过全空的行（但保留有空白字符的行？若全空则忽略）
             if all(not c for c in clean_cells):
                 continue
             all_cells.append(clean_cells)
@@ -138,15 +306,13 @@ class TextSplitter:
         if not all_cells:
             return html
 
-        # 确定最大列数
         max_cols = max(len(r) for r in all_cells)
         for r in all_cells:
             r.extend([""] * (max_cols - len(r)))
 
-        # 构建 Markdown 表格
         md_lines = [f"| {' | '.join(row)} |" for row in all_cells]
         if len(md_lines) > 1:
-            md_lines.insert(1, f"| {' | '.join(['---']*max_cols)} |")
+            md_lines.insert(1, f"| {' | '.join(['---'] * max_cols)} |")
         return "\n".join(md_lines)
 
     def _parse_table_content(self, content: str) -> Dict[str, Any]:
@@ -380,6 +546,7 @@ class TextSplitter:
     def split_mineru_jsons(self, input_dir: Path, output_dir: Path, subset_csv: Optional[Path] = None) -> None:
         if not input_dir.exists():
             raise FileNotFoundError(f"目录不存在: {input_dir}")
+
         file2meta = self._load_subset_mapping(subset_csv)
         json_paths = sorted(input_dir.glob("*_content_list.json"))
         if not json_paths:
@@ -406,25 +573,6 @@ class TextSplitter:
                 continue
         info_print(f"完成！总 chunk 数: {total_chunks}，耗时: {time.time()-t_start:.1f}s")
         info_print(f"输出目录: {output_dir.resolve()}")
-
-    # ---------- 兼容旧接口 ----------
-    def split_markdown_reports(self, all_md_dir: Path, output_dir: Path, chunk_size: int = 30, chunk_overlap: int = 5, subset_csv: Path = None):
-        self.split_mineru_jsons(input_dir=all_md_dir, output_dir=output_dir, subset_csv=subset_csv)
-
-    def split_all_reports(self, all_report_dir: Path, output_dir: Path, serialized_tables_dir: Optional[Path] = None):
-        self.split_mineru_jsons(input_dir=all_report_dir, output_dir=output_dir, subset_csv=None)
-
-    def split_markdown_file(self, md_path: Path, chunk_size: int = 30, chunk_overlap: int = 5):
-        raise NotImplementedError("此方法已废弃")
-
-    def _split_report(self, file_content: Dict[str, any], serialized_tables_report_path: Optional[Path] = None):
-        raise NotImplementedError("此方法已废弃")
-
-    def _split_page(self, page: Dict[str, any], chunk_size: int = 300, chunk_overlap: int = 50):
-        raise NotImplementedError("此方法已废弃")
-
-    def _get_serialized_tables_by_page(self, tables: List[Dict]) -> Dict[int, List[Dict]]:
-        raise NotImplementedError("此方法已废弃")
 
     def count_tokens(self, string: str, encoding_name="o200k_base"):
         encoding = tiktoken.get_encoding(encoding_name)
